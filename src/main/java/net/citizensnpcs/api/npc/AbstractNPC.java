@@ -1,10 +1,6 @@
 package net.citizensnpcs.api.npc;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Supplier;
 
 import org.bukkit.Bukkit;
@@ -79,7 +75,7 @@ public abstract class AbstractNPC implements NPC {
             return;
         CitizensAPI.talk(context);
     };
-    protected final Map<Class<? extends Trait>, Trait> traits = Maps.newLinkedHashMap();
+    protected final Map<Class<? extends Trait>, Trait> traits = Maps.newHashMap();
     private final UUID uuid;
 
     protected AbstractNPC(UUID uuid, int id, String name, NPCRegistry registry) {
@@ -329,7 +325,7 @@ public abstract class AbstractNPC implements NPC {
         metadata.loadFrom(root.getRelative("metadata"));
 
         String traitNames = root.getString("traitnames");
-        Set<String> loading = Sets.newLinkedHashSet(Splitter.on(',').split(traitNames));
+        Set<String> loading = Sets.newHashSet(Splitter.on(',').split(traitNames));
         for (String key : PRIVILEGED_TRAITS) {
             DataKey privilegedKey = root.getRelative("traits." + key);
             if (privilegedKey.keyExists()) {
@@ -404,7 +400,7 @@ public abstract class AbstractNPC implements NPC {
             root.removeKey("itemprovider");
         }
         // Save all existing traits
-        StringBuilder traitNames = new StringBuilder();
+        TreeSet<String> traitNamesSet = Sets.newTreeSet();
         for (Trait trait : traits.values()) {
             DataKey traitKey = root.getRelative("traits." + trait.getName());
             trait.save(traitKey);
@@ -416,12 +412,12 @@ public abstract class AbstractNPC implements NPC {
                 continue;
             }
             removedTraits.remove(trait.getName());
-            traitNames.append(trait.getName() + ",");
+            traitNamesSet.add(trait.getName());
         }
-        if (traitNames.length() > 0) {
-            root.setString("traitnames", traitNames.substring(0, traitNames.length() - 1));
-        } else {
+        if (traitNamesSet.isEmpty()) {
             root.setString("traitnames", "");
+        } else {
+            root.setString("traitnames", String.join(",", traitNamesSet));
         }
         for (String name : removedTraits) {
             root.removeKey("traits." + name);
