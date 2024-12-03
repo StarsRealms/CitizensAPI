@@ -79,7 +79,7 @@ public abstract class AbstractNPC implements NPC {
             return;
         CitizensAPI.talk(context);
     };
-    protected final Map<Class<? extends Trait>, Trait> traits = Maps.newHashMap();
+    protected final Map<Class<? extends Trait>, Trait> traits = Maps.newLinkedHashMap();
     private final UUID uuid;
 
     protected AbstractNPC(UUID uuid, int id, String name, NPCRegistry registry) {
@@ -329,7 +329,7 @@ public abstract class AbstractNPC implements NPC {
         metadata.loadFrom(root.getRelative("metadata"));
 
         String traitNames = root.getString("traitnames");
-        Set<String> loading = Sets.newHashSet(Splitter.on(',').split(traitNames));
+        Set<String> loading = Sets.newLinkedHashSet(Splitter.on(',').split(traitNames));
         for (String key : PRIVILEGED_TRAITS) {
             DataKey privilegedKey = root.getRelative("traits." + key);
             if (privilegedKey.keyExists()) {
