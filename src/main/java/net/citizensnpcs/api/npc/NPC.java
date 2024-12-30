@@ -518,14 +518,6 @@ public interface NPC extends Agent, Cloneable {
          */
         LEASH_PROTECTED("protected-leash", Boolean.class),
         /**
-         * The Minecart item name.
-         */
-        MINECART_ITEM("minecart-item-name", String.class),
-        /**
-         * The Minecart item data. Byte.
-         */
-        MINECART_ITEM_DATA("minecart-item-data", Byte.class),
-        /**
          * The Minecart item offset as defined by Minecraft. {@link Minecart#setDisplayBlockOffset(int)}
          */
         MINECART_OFFSET("minecart-item-offset", Integer.class),
@@ -539,7 +531,6 @@ public interface NPC extends Agent, Cloneable {
          * The packet update delay in ticks. Defaults to setting value.
          */
         PACKET_UPDATE_DELAY("packet-update-delay", Integer.class),
-        PATHFINDER_FALL_DISTANCE("pathfinder-fall-distance", Double.class),
         /**
          * Whether to open doors while pathfinding.
          */
