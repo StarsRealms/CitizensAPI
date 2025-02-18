@@ -363,7 +363,8 @@ public interface NPC extends Agent, Cloneable {
     public void setItemProvider(Supplier<ItemStack> supplier);
 
     /**
-     * Set the target movement destination location to walk towards using Minecraft movement. Should be set every tick.
+     * Set the destination location to walk towards in a straight line using Minecraft movement. Should be called every
+     * tick.
      *
      * @param destination
      *            The destination {@link Location}
@@ -448,7 +449,7 @@ public interface NPC extends Agent, Cloneable {
         AMBIENT_SOUND("ambient-sound", String.class),
         @SuppressWarnings("serial")
         BOUNDING_BOX_FUNCTION("bounding-box-function", new TypeToken<Supplier<BoundingBox>>() {
-        }),
+        }, false),
         /**
          * Whether the NPC is collidable with Players or not.
          */
@@ -487,7 +488,7 @@ public interface NPC extends Agent, Cloneable {
          * Whether the NPC is currently glowing.
          */
         GLOWING("glowing", Boolean.class),
-        HOLOGRAM_RENDERER("hologram-renderer", Object.class),
+        HOLOGRAM_RENDERER("hologram-renderer", TypeToken.of(Object.class), false),
         /**
          * The Minecraft sound to play when hurt.
          */
@@ -506,7 +507,7 @@ public interface NPC extends Agent, Cloneable {
         ITEM_ID("item-type-id", String.class),
         @SuppressWarnings("serial")
         JUMP_POWER_SUPPLIER("jump-power-supplier", new TypeToken<Function<NPC, Float>>() {
-        }),
+        }, false),
         /**
          * Whether to keep chunk loaded.
          */
@@ -524,7 +525,7 @@ public interface NPC extends Agent, Cloneable {
         /**
          * Whether the NPC's nameplate should be visible.
          */
-        NAMEPLATE_VISIBLE("nameplate-visible", Boolean.class),
+        NAMEPLATE_VISIBLE("nameplate-visible", TypeToken.of(Boolean.class), false),
         /** Internal use only */
         NPC_SPAWNING_IN_PROGRESS("citizens-internal-spawning-npc", Boolean.class),
         /**
@@ -578,7 +579,7 @@ public interface NPC extends Agent, Cloneable {
          * Whether to allow swimming. Boolean.
          */
         SWIM("swim", Boolean.class),
-        TEXT_DISPLAY_COMPONENT("text-display-component", Component.class),
+        TEXT_DISPLAY_COMPONENT("text-display-component", TypeToken.of(Component.class), false),
         /**
          * The tracking distance for packets. Defaults to the default tracking distance defined by the server
          */
@@ -605,15 +606,25 @@ public interface NPC extends Agent, Cloneable {
         WATER_SPEED_MODIFIER("water-speed-modifier", Double.class);
 
         private final String key;
+        private final boolean strict;
         private final TypeToken<?> type;
 
         Metadata(String key, Class<?> type) {
-            this(key, TypeToken.of(type));
+            this(key, TypeToken.of(type), true);
         }
 
         Metadata(String key, TypeToken<?> type) {
+            this(key, type, true);
+        }
+
+        Metadata(String key, TypeToken<?> type, boolean strict) {
             this.key = key;
             this.type = type;
+            this.strict = strict;
+        }
+
+        public boolean accepts(Class<? extends Object> clazz) {
+            return !strict || type.isSupertypeOf(clazz);
         }
 
         public String getKey() {

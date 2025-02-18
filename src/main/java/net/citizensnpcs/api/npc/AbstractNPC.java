@@ -14,6 +14,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.inventory.ItemStack;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -46,17 +47,17 @@ import net.citizensnpcs.api.util.RemoveReason;
 import net.citizensnpcs.api.util.SpigotUtil;
 
 public abstract class AbstractNPC implements NPC {
+    private final List<String> clearSaveData = Lists.newArrayList();
     protected Object coloredNameComponentCache;
     protected String coloredNameStringCache;
     private final GoalController goalController = new SimpleGoalController();
     private final int id;
     private Supplier<ItemStack> itemProvider = () -> {
-        Material id = Material.STONE;
+        Material id = data().has(NPC.Metadata.ITEM_ID)
+                ? Material.getMaterial(data().<String> get(NPC.Metadata.ITEM_ID), false)
+                : null;
         int data = data().get(NPC.Metadata.ITEM_DATA, data().get("falling-block-data", 0));
-        if (data().has(NPC.Metadata.ITEM_ID)) {
-            id = Material.getMaterial(data().<String> get(NPC.Metadata.ITEM_ID), false);
-        }
-        if (id == Material.AIR) {
+        if (id == Material.AIR || id == null) {
             id = Material.STONE;
             Messaging.severe(getId(), "invalid Material: converted to stone");
         }
@@ -65,7 +66,6 @@ public abstract class AbstractNPC implements NPC {
     private final MetadataStore metadata = new SimpleMetadataStore();
     private String name;
     private final NPCRegistry registry;
-    private final List<String> removedTraits = Lists.newArrayList();
     private final List<Runnable> runnables = Lists.newArrayList();
     private final SpeechController speechController = context -> {
         context.setTalker(getEntity());
@@ -110,7 +110,9 @@ public abstract class AbstractNPC implements NPC {
         Class<? extends Trait> clazz = trait.getClass();
         Trait replaced = traits.get(clazz);
 
-        Bukkit.getPluginManager().registerEvents(trait, CitizensAPI.getPlugin());
+        if (CitizensAPI.getPlugin().isEnabled()) {
+            Bukkit.getPluginManager().registerEvents(trait, CitizensAPI.getPlugin());
+        }
         traits.put(clazz, trait);
         if (isSpawned()) {
             trait.onSpawn();
@@ -325,11 +327,15 @@ public abstract class AbstractNPC implements NPC {
         metadata.loadFrom(root.getRelative("metadata"));
 
         String traitNames = root.getString("traitnames");
+        if (traitNames.isEmpty()) {
+            Messaging.severe("Corrupted savedata (empty trait names) for NPC", this);
+            return;
+        }
         Set<String> loading = Sets.newHashSet(Splitter.on(',').split(traitNames));
-        for (String key : PRIVILEGED_TRAITS) {
-            DataKey privilegedKey = root.getRelative("traits." + key);
-            if (privilegedKey.keyExists()) {
-                loadTraitFromKey(privilegedKey);
+        for (String key : PRIORITY_TRAITS) {
+            DataKey pkey = root.getRelative("traits." + key);
+            if (pkey.keyExists()) {
+                loadTraitFromKey(pkey);
                 loading.remove(key);
             }
         }
@@ -367,7 +373,7 @@ public abstract class AbstractNPC implements NPC {
         Trait trait = traits.remove(traitClass);
         if (trait != null) {
             Bukkit.getPluginManager().callEvent(new NPCRemoveTraitEvent(this, trait));
-            removedTraits.add(trait.getName());
+            clearSaveData.add("traits." + trait.getName());
             if (trait.isRunImplemented()) {
                 runnables.remove(trait);
             }
@@ -400,29 +406,32 @@ public abstract class AbstractNPC implements NPC {
             root.removeKey("itemprovider");
         }
         // Save all existing traits
-        TreeSet<String> traitNamesSet = Sets.newTreeSet();
+        TreeSet<String> traitNames = Sets.newTreeSet();
         for (Trait trait : traits.values()) {
+            clearSaveData.remove("traits." + trait.getName());
+            traitNames.add(trait.getName());
+
             DataKey traitKey = root.getRelative("traits." + trait.getName());
-            trait.save(traitKey);
             try {
-                PersistenceLoader.save(trait, traitKey);
+                trait.save(traitKey);
             } catch (Throwable t) {
-                Messaging.log("PersistenceLoader failed for", trait);
+                Messaging.severe("Saving trait", trait, "failed for NPC", this);
                 t.printStackTrace();
                 continue;
             }
-            removedTraits.remove(trait.getName());
-            traitNamesSet.add(trait.getName());
+            try {
+                PersistenceLoader.save(trait, traitKey);
+            } catch (Throwable t) {
+                Messaging.severe("PersistenceLoader failed saving trait", trait, "for NPC", this);
+                t.printStackTrace();
+                continue;
+            }
         }
-        if (traitNamesSet.isEmpty()) {
-            root.setString("traitnames", "");
-        } else {
-            root.setString("traitnames", String.join(",", traitNamesSet));
+        root.setString("traitnames", Joiner.on(',').join(traitNames));
+        for (String name : clearSaveData) {
+            root.removeKey(name);
         }
-        for (String name : removedTraits) {
-            root.removeKey("traits." + name);
-        }
-        removedTraits.clear();
+        clearSaveData.clear();
     }
 
     @Override
@@ -519,15 +528,6 @@ public abstract class AbstractNPC implements NPC {
         teleport(entity, location, 5, cause);
     }
 
-    protected void unloadEvents() {
-        runnables.clear();
-        for (Trait trait : traits.values()) {
-            HandlerList.unregisterAll(trait);
-        }
-        traits.clear();
-        goalController.clear();
-    }
-
     public void update() {
         // can modify itself during running
         for (int i = 0; i < runnables.size(); i++) {
@@ -543,5 +543,5 @@ public abstract class AbstractNPC implements NPC {
         return data().get(NPC.Metadata.USE_MINECRAFT_AI, false);
     }
 
-    private static final String[] PRIVILEGED_TRAITS = { "location", "type" };
+    private static final String[] PRIORITY_TRAITS = { "location", "type" };
 }
