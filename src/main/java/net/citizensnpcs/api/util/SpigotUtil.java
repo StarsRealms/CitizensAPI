@@ -29,7 +29,6 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 
 public class SpigotUtil {
-
     /**
      * Spigot has changed InventoryViews to be an abstract class instead of an interface necessitating an abstraction
      * over the existing API to avoid java runtime errors. This class is subject to change as required.
@@ -176,7 +175,7 @@ public class SpigotUtil {
                 versionChecker = s -> Class.forName("net.citizensnpcs.nms." + s + ".util.NMSImpl");
             }
             String revision = null;
-            for (int i = 1; i <= 4; i++) {
+            for (int i = 1; i <= 6; i++) {
                 try {
                     versionChecker.accept(versionString + i);
                     revision = versionString + i;

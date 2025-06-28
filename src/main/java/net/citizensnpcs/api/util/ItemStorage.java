@@ -5,8 +5,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -18,7 +16,6 @@ import org.bukkit.util.io.BukkitObjectInputStream;
 import org.bukkit.util.io.BukkitObjectOutputStream;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Splitter;
 import com.google.common.io.BaseEncoding;
 
 import net.citizensnpcs.api.event.CitizensDeserialiseMetaEvent;
@@ -73,11 +70,12 @@ public class ItemStorage {
         }
         if (root.keyExists("meta")) {
             List<String> lore = null;
-            if (root.keyExists("lore")) {
-                lore = Splitter.on(CHAT_NEWLINE).splitToStream(root.getString("lore"))
-                        .map(s -> Messaging.parseComponents(s)).collect(Collectors.toList());
+            String displayName = null;
+            if (root.keyExists("editable_components") && root.getBoolean("editable_components.edited", false)) {
+                lore = Messaging.parseComponentsList(root.getString("editable_components.lore"));
+                displayName = root.getString("editable_components.display_name");
+                root.setBoolean("editable_components.edited", false);
             }
-            String displayName = root.getString("displayname", null);
             deserialiseMeta(root.getRelative("meta"), res, lore, displayName);
         }
         return res;
@@ -107,15 +105,19 @@ public class ItemStorage {
         }
         if (item.hasItemMeta()) {
             ItemMeta meta = item.getItemMeta();
+            key.removeKey("displayname");
+            key.removeKey("lore");
             if (meta.hasDisplayName()) {
-                key.setString("displayname", meta.getDisplayName());
+                key.setString("editable_components.display_name", meta.getDisplayName());
+                key.setBoolean("editable_components.edited", false);
             } else {
-                key.removeKey("displayname");
+                key.removeKey("editable_components.display_name");
             }
             if (meta.hasLore()) {
-                key.setString("lore", Joiner.on("<br>").join(meta.getLore()));
+                key.setString("editable_components.lore", Joiner.on("<br>").join(meta.getLore()));
+                key.setBoolean("editable_components.edited", false);
             } else {
-                key.removeKey("lore");
+                key.removeKey("editable_components.lore");
             }
             serialiseMeta(key.getRelative("meta"), item.getType(), meta);
         } else {
@@ -149,8 +151,6 @@ public class ItemStorage {
         Bukkit.getPluginManager().callEvent(new CitizensSerialiseMetaEvent(key, meta));
         return;
     }
-
-    private static final Pattern CHAT_NEWLINE = Pattern.compile("<br>|\\n", Pattern.MULTILINE);
 
     private static boolean SUPPORT_REGISTRY = true;
     static {

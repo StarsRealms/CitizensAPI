@@ -40,7 +40,6 @@ import net.citizensnpcs.api.CitizensAPI;
 import net.citizensnpcs.api.util.Messaging;
 import net.citizensnpcs.api.util.SpigotUtil.InventoryViewAPI;
 
-// TODO: class-based injection? sub-inventory pages
 /**
  * A container class for Inventory GUIs. Expects {@link #onInventoryClick(InventoryClickEvent)} and
  * {@link #onInventoryClose(InventoryCloseEvent)} to be called by the user (or registered with the event listener
@@ -220,10 +219,12 @@ public class InventoryMenu implements Listener, Runnable {
 
         switch (event.getAction()) {
             case COLLECT_TO_CURSOR:
+            case DROP_ONE_SLOT:
+            case DROP_ALL_SLOT:
                 event.setCancelled(true);
-            case UNKNOWN:
             case DROP_ONE_CURSOR:
             case DROP_ALL_CURSOR:
+            case UNKNOWN:
                 return;
             default:
                 break;

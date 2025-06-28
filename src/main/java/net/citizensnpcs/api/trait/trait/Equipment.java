@@ -3,6 +3,7 @@ package net.citizensnpcs.api.trait.trait;
 import java.util.Locale;
 import java.util.Map;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.ArmorStand;
@@ -11,14 +12,22 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.HandlerList;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
+import net.citizensnpcs.api.event.NPCEvent;
+import net.citizensnpcs.api.event.NPCSeenByPlayerEvent;
 import net.citizensnpcs.api.exception.NPCLoadException;
+import net.citizensnpcs.api.npc.NPC;
 import net.citizensnpcs.api.npc.NPC.NPCUpdate;
 import net.citizensnpcs.api.trait.Trait;
+import net.citizensnpcs.api.trait.TraitEventHandler;
 import net.citizensnpcs.api.trait.TraitName;
 import net.citizensnpcs.api.util.DataKey;
 import net.citizensnpcs.api.util.ItemStorage;
@@ -41,20 +50,14 @@ public class Equipment extends Trait {
     }
 
     /**
-     * @see #get(int)
-     */
-    public ItemStack get(EquipmentSlot slot) {
-        return get(slot.getIndex());
-    }
-
-    /**
      * Get an NPC's equipment from the given slot.
      *
      * @param slot
-     *            Slot where the equipment is located (0-6)
+     *            Slot where the equipment is located
      * @return ItemStack from the given equipment slot
      */
-    public ItemStack get(int slot) {
+    public ItemStack get(EquipmentSlot eslot) {
+        int slot = eslot.getIndex();
         if (npc.getEntity() instanceof Enderman && slot != 0) {
             throw new IllegalArgumentException("Slot must be 0 for enderman");
         }
@@ -70,6 +73,15 @@ public class Equipment extends Trait {
      */
     public ItemStack getCosmetic(EquipmentSlot slot) {
         return cosmetic[slot.getIndex()] == null ? null : cosmetic[slot.getIndex()].clone();
+    }
+
+    /**
+     * Get all of an NPC's cosmetic equipment.
+     *
+     * @return An array of an NPC's cosmetic equipment
+     */
+    public ItemStack[] getCosmeticEquipment() {
+        return cosmetic;
     }
 
     /**
@@ -117,6 +129,25 @@ public class Equipment extends Trait {
     public void onAttach() {
         npc.scheduleUpdate(NPCUpdate.PACKET);
         run();
+    }
+
+    @TraitEventHandler(@EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR))
+    private void onSeenByPlayer(NPCSeenByPlayerEvent event) {
+        for (ItemStack stack : equipment) {
+            if (stack != null && stack.getType() != Material.AIR)
+                return;
+
+        }
+        boolean hasCosmetic = false;
+        for (ItemStack stack : cosmetic) {
+            if (stack != null && stack.getType() != Material.AIR) {
+                hasCosmetic = true;
+                break;
+            }
+        }
+        if (!hasCosmetic)
+            return;
+        event.getPlayer().sendEquipmentChange((LivingEntity) npc.getEntity(), EMPTY_EQUIPMENT_MAP);
     }
 
     @Override
@@ -203,22 +234,19 @@ public class Equipment extends Trait {
     }
 
     /**
-     * @see #set(int, ItemStack)
-     */
-    public void set(EquipmentSlot slot, ItemStack item) {
-        set(slot.getIndex(), item);
-    }
-
-    /**
      * Set the armor from the given slot as the given item.
      *
      * @param slot
-     *            Slot of the armor (must be between 0 and 5)
+     *            Equipment slot
      * @param item
      *            Item to set the armor as
      */
     @SuppressWarnings("deprecation")
-    public void set(int slot, ItemStack item) {
+    public void set(EquipmentSlot eslot, ItemStack item) {
+        if (NPCChangeEquipmentEvent.getHandlerList().getRegisteredListeners().length > 0) {
+            Bukkit.getPluginManager().callEvent(new NPCChangeEquipmentEvent(npc, eslot, item));
+        }
+        int slot = eslot.getIndex();
         if (item != null) {
             item = item.getType() == Material.AIR ? null : item.clone();
         }
@@ -329,6 +357,38 @@ public class Equipment extends Trait {
         }
     }
 
+    public static class NPCChangeEquipmentEvent extends NPCEvent {
+        private final EquipmentSlot slot;
+        private final ItemStack stack;
+
+        public NPCChangeEquipmentEvent(NPC npc, EquipmentSlot slot, ItemStack stack) {
+            super(npc);
+            this.slot = slot;
+            this.stack = stack;
+        }
+
+        @Override
+        public HandlerList getHandlers() {
+            return handlers;
+        }
+
+        public EquipmentSlot getSlot() {
+            return slot;
+        }
+
+        public ItemStack getStack() {
+            return stack;
+        }
+
+        public static HandlerList getHandlerList() {
+            return handlers;
+        }
+
+        private static final HandlerList handlers = new HandlerList();
+    }
+
+    private static final Map<org.bukkit.inventory.EquipmentSlot, ItemStack> EMPTY_EQUIPMENT_MAP = ImmutableMap
+            .of(org.bukkit.inventory.EquipmentSlot.HAND, new ItemStack(Material.AIR, 1));
     private static boolean SUPPORT_BODY = false;
     private static boolean SUPPORT_OFFHAND = true;
     static {

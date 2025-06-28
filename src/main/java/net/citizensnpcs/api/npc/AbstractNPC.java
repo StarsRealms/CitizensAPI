@@ -2,14 +2,13 @@ package net.citizensnpcs.api.npc;
 
 import java.util.*;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.inventory.ItemStack;
@@ -29,7 +28,6 @@ import net.citizensnpcs.api.ai.speech.event.NPCSpeechEvent;
 import net.citizensnpcs.api.event.DespawnReason;
 import net.citizensnpcs.api.event.NPCAddTraitEvent;
 import net.citizensnpcs.api.event.NPCCloneEvent;
-import net.citizensnpcs.api.event.NPCRemoveByCommandSenderEvent;
 import net.citizensnpcs.api.event.NPCRemoveEvent;
 import net.citizensnpcs.api.event.NPCRemoveTraitEvent;
 import net.citizensnpcs.api.event.NPCRenameEvent;
@@ -37,7 +35,6 @@ import net.citizensnpcs.api.event.NPCTeleportEvent;
 import net.citizensnpcs.api.persistence.PersistenceLoader;
 import net.citizensnpcs.api.trait.Trait;
 import net.citizensnpcs.api.trait.trait.MobType;
-import net.citizensnpcs.api.trait.trait.PlayerFilter;
 import net.citizensnpcs.api.util.DataKey;
 import net.citizensnpcs.api.util.ItemStorage;
 import net.citizensnpcs.api.util.MemoryDataKey;
@@ -147,12 +144,7 @@ public abstract class AbstractNPC implements NPC {
 
     @Override
     public MetadataStore data() {
-        return this.metadata;
-    }
-
-    @Override
-    public boolean despawn() {
-        return despawn(DespawnReason.PLUGIN);
+        return metadata;
     }
 
     @Override
@@ -166,12 +158,6 @@ public abstract class AbstractNPC implements NPC {
         traits.clear();
         goalController.clear();
         registry.deregister(this);
-    }
-
-    @Override
-    public void destroy(CommandSender source) {
-        Bukkit.getPluginManager().callEvent(new NPCRemoveByCommandSenderEvent(this, source));
-        destroy();
     }
 
     @Override
@@ -297,27 +283,6 @@ public abstract class AbstractNPC implements NPC {
     }
 
     @Override
-    public boolean isFlyable() {
-        return data().get(NPC.Metadata.FLYABLE, false);
-    }
-
-    @Override
-    public boolean isHiddenFrom(Player player) {
-        PlayerFilter filter = getTraitNullable(PlayerFilter.class);
-        return filter != null ? filter.isHidden(player) : false;
-    }
-
-    @Override
-    public boolean isProtected() {
-        return data().get(NPC.Metadata.DEFAULT_PROTECTED, true);
-    }
-
-    @Override
-    public boolean isPushableByFluids() {
-        return data().get(NPC.Metadata.FLUID_PUSHABLE, !isProtected());
-    }
-
-    @Override
     public void load(final DataKey root) {
         setNameInternal(root.getString("name"));
         if (root.keyExists("itemprovider")) {
@@ -331,7 +296,7 @@ public abstract class AbstractNPC implements NPC {
             Messaging.severe("Corrupted savedata (empty trait names) for NPC", this);
             return;
         }
-        Set<String> loading = Sets.newHashSet(Splitter.on(',').split(traitNames));
+        Set<String> loading = Sets.newHashSet(Splitter.on(',').omitEmptyStrings().split(traitNames));
         for (String key : PRIORITY_TRAITS) {
             DataKey pkey = root.getRelative("traits." + key);
             if (pkey.keyExists()) {
@@ -405,8 +370,7 @@ public abstract class AbstractNPC implements NPC {
         } else {
             root.removeKey("itemprovider");
         }
-        // Save all existing traits
-        TreeSet<String> traitNames = Sets.newTreeSet();
+        Set<String> traitNames = Splitter.on(',').omitEmptyStrings().splitToStream(root.getString("traitnames")).collect(Collectors.toCollection(TreeSet::new));
         for (Trait trait : traits.values()) {
             clearSaveData.remove("traits." + trait.getName());
             traitNames.add(trait.getName());
@@ -427,21 +391,14 @@ public abstract class AbstractNPC implements NPC {
                 continue;
             }
         }
-        root.setString("traitnames", Joiner.on(',').join(traitNames));
-        for (String name : clearSaveData) {
-            root.removeKey(name);
+        for (String clear : clearSaveData) {
+            if (clear.startsWith("traits.")) {
+                traitNames.remove(clear.replace("traits.", ""));
+            }
+            root.removeKey(clear);
         }
+        root.setString("traitnames", Joiner.on(',').join(traitNames));
         clearSaveData.clear();
-    }
-
-    @Override
-    public void setAlwaysUseNameHologram(boolean use) {
-        data().setPersistent(NPC.Metadata.ALWAYS_USE_NAME_HOLOGRAM, use);
-    }
-
-    @Override
-    public void setFlyable(boolean flyable) {
-        data().setPersistent(NPC.Metadata.FLYABLE, flyable);
     }
 
     @Override
@@ -480,16 +437,6 @@ public abstract class AbstractNPC implements NPC {
         this.name = name;
         coloredNameComponentCache = Messaging.minecraftComponentFromRawMessage(this.name);
         coloredNameStringCache = Messaging.parseComponents(this.name);
-    }
-
-    @Override
-    public void setProtected(boolean isProtected) {
-        data().setPersistent(NPC.Metadata.DEFAULT_PROTECTED, isProtected);
-    }
-
-    @Override
-    public void setUseMinecraftAI(boolean use) {
-        data().setPersistent(NPC.Metadata.USE_MINECRAFT_AI, use);
     }
 
     private void teleport(final Entity entity, Location location, int delay, TeleportCause cause) {
@@ -536,11 +483,6 @@ public abstract class AbstractNPC implements NPC {
         if (isSpawned()) {
             goalController.run();
         }
-    }
-
-    @Override
-    public boolean useMinecraftAI() {
-        return data().get(NPC.Metadata.USE_MINECRAFT_AI, false);
     }
 
     private static final String[] PRIORITY_TRAITS = { "location", "type" };
