@@ -7,6 +7,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.plugin.Plugin;
 
 import net.citizensnpcs.api.ai.speech.SpeechContext;
+import net.citizensnpcs.api.astar.pathfinder.AsyncChunkCache;
 import net.citizensnpcs.api.command.CommandManager;
 import net.citizensnpcs.api.npc.MemoryNPCDataStore;
 import net.citizensnpcs.api.npc.NPC;
@@ -15,11 +16,14 @@ import net.citizensnpcs.api.npc.NPCRegistry;
 import net.citizensnpcs.api.npc.NPCSelector;
 import net.citizensnpcs.api.npc.templates.TemplateRegistry;
 import net.citizensnpcs.api.trait.TraitFactory;
+import net.citizensnpcs.api.util.SpigotUtil;
+import net.citizensnpcs.api.util.schedulers.SchedulerAdapter;
 
 /**
  * Contains methods used in order to utilize the Citizens API.
  */
 public final class CitizensAPI {
+
     private CitizensAPI() {
     }
 
@@ -58,6 +62,10 @@ public final class CitizensAPI {
         return getImplementation().createNamedNPCRegistry(name, store);
     }
 
+    public static AsyncChunkCache getAsyncChunkCache() {
+        return getImplementation().getAsyncChunkCache();
+    }
+
     public static CommandManager getCommandManager() {
         return getImplementation().getCommandManager();
     }
@@ -80,10 +88,6 @@ public final class CitizensAPI {
         if (instance == null)
             throw new IllegalStateException("no implementation set");
         return instance;
-    }
-
-    private static ClassLoader getImplementationClassLoader() {
-        return getImplementation().getOwningClassLoader();
     }
 
     public static LocationLookup getLocationLookup() {
@@ -126,6 +130,22 @@ public final class CitizensAPI {
      */
     public static Plugin getPlugin() {
         return getImplementation();
+    }
+
+    /**
+     * The new scheduler that works on Folia and Spigot
+     *
+     * @return scheduler Folia or Spigot
+     */
+    public static SchedulerAdapter getScheduler() {
+        if (scheduler == null) {
+            if (SpigotUtil.isFoliaServer()) {
+                scheduler = new net.citizensnpcs.api.util.schedulers.adapter.FoliaScheduler(getPlugin());
+            } else {
+                scheduler = new net.citizensnpcs.api.util.schedulers.adapter.SpigotScheduler(getPlugin());
+            }
+        }
+        return scheduler;
     }
 
     public static TemplateRegistry getTemplateRegistry() {
@@ -207,4 +227,6 @@ public final class CitizensAPI {
     }
 
     private static volatile CitizensPlugin instance = null;
+
+    private static SchedulerAdapter scheduler;
 }

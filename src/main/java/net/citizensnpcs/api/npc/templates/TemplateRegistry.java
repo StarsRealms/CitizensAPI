@@ -27,9 +27,6 @@ public class TemplateRegistry {
 
     public TemplateRegistry(Path folder) {
         this.baseFolder = folder;
-        if (!folder.toFile().exists()) {
-            folder.toFile().mkdir();
-        }
         loadTemplates(baseFolder);
     }
 

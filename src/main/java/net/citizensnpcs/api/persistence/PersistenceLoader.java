@@ -107,6 +107,10 @@ public class PersistenceLoader {
             return field.getType();
         }
 
+        public Class<?> getValueType() {
+            return persistAnnotation.valueType() == Object.class ? getType() : persistAnnotation.valueType();
+        }
+
         public boolean isDefault(Object value) {
             return defaultValue != null && defaultValue.equals(value);
         }
@@ -286,7 +290,7 @@ public class PersistenceLoader {
 
     private static void deserialiseCollection(Collection<Object> collection, DataKey root, PersistField field) {
         for (DataKey subKey : root.getRelative(field.key).getSubKeys()) {
-            Object loaded = deserialiseCollectionValue(field, subKey, field.persistAnnotation.valueType());
+            Object loaded = deserialiseCollectionValue(field, subKey, field.getValueType());
             if (loaded == null) {
                 continue;
             }
@@ -324,7 +328,7 @@ public class PersistenceLoader {
     @SuppressWarnings("unchecked")
     private static void deserialiseMap(Map<Object, Object> map, DataKey root, PersistField field) {
         for (DataKey subKey : root.getRelative(field.key).getSubKeys()) {
-            Object loaded = deserialiseCollectionValue(field, subKey, field.persistAnnotation.valueType());
+            Object loaded = deserialiseCollectionValue(field, subKey, field.getValueType());
             if (loaded == null)
                 continue;
 
@@ -353,7 +357,8 @@ public class PersistenceLoader {
                 } else if (type == UUID.class) {
                     key = UUID.fromString(String.valueOf(key));
                 } else if (SpigotUtil.isRegistryKeyed(type)) {
-                    key = Bukkit.getRegistry((Class<? extends Keyed>) type).get(SpigotUtil.getKey(String.valueOf(key)));
+                    key = Bukkit.getRegistry((Class<? extends Keyed>) type)
+                            .get(SpigotUtil.getKey(String.valueOf(key).replace(',', '.')));
                 } else if (type.isEnum()) {
                     key = Enum.valueOf((Class<? extends Enum>) type, String.valueOf(key));
                 } else
@@ -594,7 +599,14 @@ public class PersistenceLoader {
             Map<Object, Object> map = (Map<Object, Object>) fieldValue;
             root.removeKey(field.key);
             for (Map.Entry<Object, Object> entry : map.entrySet()) {
-                String key = createRelativeKey(field.key, String.valueOf(entry.getKey()));
+                String mapKey = "";
+                if (SUPPORTS_KEYED && entry.getKey() != null && entry.getKey() instanceof Keyed) {
+                    NamespacedKey nskey = ((Keyed) entry.getKey()).getKey();
+                    mapKey = nskey.getNamespace() + ":" + nskey.getKey().replace('.', ',');
+                } else {
+                    mapKey = String.valueOf(entry.getKey());
+                }
+                String key = createRelativeKey(field.key, mapKey);
                 serialiseValue(field, root.getRelative(key), entry.getValue());
             }
         } else if (float[].class.isAssignableFrom(field.getType())) {
@@ -618,9 +630,9 @@ public class PersistenceLoader {
                 String key = createRelativeKey(field.key, i);
                 serialiseValue(field, root.getRelative(key), ints[i]);
             }
-        } else if (field.key.equals("$key"))
+        } else if (field.key.equals("$key")) {
             return;
-        else {
+        } else {
             serialiseValue(field, root.getRelative(field.key), fieldValue);
         }
     }
@@ -633,7 +645,7 @@ public class PersistenceLoader {
         }
         if (field.delegate != null) {
             ((Persister<Object>) field.delegate).save(value, root);
-        } else if (SpigotUtil.isRegistryKeyed(field.getType())) {
+        } else if (SUPPORTS_KEYED && value instanceof Keyed) {
             NamespacedKey nskey = ((Keyed) value).getKey();
             root.setRaw("", nskey.getNamespace() + ":" + nskey.getKey());
         } else if (value instanceof Enum) {

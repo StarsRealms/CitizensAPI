@@ -4,7 +4,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Locale;
@@ -30,12 +29,14 @@ import net.citizensnpcs.api.util.Messaging;
 public final class TraitInfo {
     private boolean defaultTrait;
     private String name;
+    private TraitTemplateParser parser;
     private Supplier<? extends Trait> supplier;
     private boolean trackStats;
     private final Class<? extends Trait> trait;
 
     private TraitInfo(Class<? extends Trait> trait) {
         this.trait = trait;
+        this.parser = TraitTemplateParser.createDefault(trait);
         TraitName anno = trait.getAnnotation(TraitName.class);
         if (anno != null) {
             name = anno.value().toLowerCase(Locale.ROOT);
@@ -68,6 +69,10 @@ public final class TraitInfo {
                 throw new IllegalArgumentException("Trait class must have a no-arguments constructor");
             }
         }
+    }
+
+    public TraitTemplateParser getParser() {
+        return parser;
     }
 
     public Class<? extends Trait> getTraitClass() {
@@ -162,6 +167,12 @@ public final class TraitInfo {
 
     public TraitInfo withSupplier(Supplier<? extends Trait> supplier) {
         this.supplier = supplier;
+        return this;
+    }
+
+    public TraitInfo withTemplateParser(TraitTemplateParser parser) {
+        Objects.requireNonNull(parser);
+        this.parser = parser;
         return this;
     }
 

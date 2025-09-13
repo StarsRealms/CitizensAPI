@@ -1,7 +1,6 @@
 package net.citizensnpcs.api.ai;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
@@ -259,7 +258,7 @@ public class NavigatorParameters implements Cloneable {
     /**
      * Returns the distance margin or leeway that the {@link Navigator} will be able to stop from the target
      * destination. The margin will be measured against the block distance.
-     *
+     * <p>
      * For example: if the distance margin were 2, then the {@link Navigator} could stop moving towards the target when
      * it is 2 blocks away from it.
      *
@@ -318,7 +317,7 @@ public class NavigatorParameters implements Cloneable {
      * @return An array of all current examiners
      */
     public BlockExaminer[] examiners() {
-        return examiners.toArray(new BlockExaminer[examiners.size()]);
+        return examiners.size() == 0 ? EMPTY_EXAMINERS : examiners.toArray(new BlockExaminer[examiners.size()]);
     }
 
     public int fallDistance() {
@@ -331,7 +330,7 @@ public class NavigatorParameters implements Cloneable {
     }
 
     public boolean hasExaminer(Class<? extends BlockExaminer> clazz) {
-        return Arrays.asList(examiners).stream().anyMatch(e -> clazz.isAssignableFrom(e.getClass()));
+        return examiners.stream().anyMatch(e -> clazz.isAssignableFrom(e.getClass()));
     }
 
     /**
@@ -390,10 +389,10 @@ public class NavigatorParameters implements Cloneable {
     }
 
     /**
-     * Sets whether or not to use an A* pathfinder defined in {@link AStarMachine} for pathfinding.
-     *
+     * Sets whether to use an A* pathfinder defined in {@link AStarMachine} for pathfinding.
+     * <p>
      * If this is set to MINECRAFT, then the Minecraft pathfinder will be used, which may or may not be more consistent.
-     *
+     * <p>
      * Note that certain API features will not be possible if this is set to MINECRAFT - for example,
      * {@link #examiner(BlockExaminer)}.
      *
@@ -579,10 +578,10 @@ public class NavigatorParameters implements Cloneable {
     }
 
     /**
-     * Sets whether or not to use an A* pathfinder defined in {@link AStarMachine} for pathfinding.
-     *
+     * Sets whether to use an A* pathfinder defined in {@link AStarMachine} for pathfinding.
+     * <p>
      * If this is set to false, then the Minecraft pathfinder will be used, which may or may not be more consistent.
-     *
+     * <p>
      * Note that certain API features will not be possible if this is set to false - this includes
      * {@link #examiner(BlockExaminer)} and {@link #distanceMargin(double)}.
      *
@@ -600,4 +599,6 @@ public class NavigatorParameters implements Cloneable {
     }
 
     private static final Function<org.bukkit.entity.Entity, Location> DEFAULT_MAPPER = Entity::getLocation;
+
+    private static final BlockExaminer[] EMPTY_EXAMINERS = new BlockExaminer[] {};
 }

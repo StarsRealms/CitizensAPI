@@ -23,11 +23,17 @@ public interface TraitFactory {
     void deregisterTrait(TraitInfo info);
 
     /**
-     * Returns all currently registered traits, including <em>internal</em> traits
-     *
-     * @return
+     * @return All currently registered traits, including <em>internal</em> traits.
      */
     Collection<TraitInfo> getRegisteredTraits();
+
+    /**
+     * Gets the {@link TraitTemplateParser} with the given trait name or null if not found.
+     *
+     * @param name
+     * @return the trait template parser
+     */
+    TraitTemplateParser getTemplateParser(String name);
 
     /**
      * Gets a trait with the given class.

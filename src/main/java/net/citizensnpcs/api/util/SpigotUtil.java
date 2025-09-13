@@ -8,17 +8,21 @@ import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Keyed;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
@@ -214,6 +218,10 @@ public class SpigotUtil {
         return BUKKIT_VERSION;
     }
 
+    public static boolean isFoliaServer() {
+        return FOLIA_SERVER;
+    }
+
     public static boolean isRegistryKeyed(Class<?> clazz) {
         if (NON_REGISTRY_CLASSES.containsKey(clazz))
             return false;
@@ -266,7 +274,10 @@ public class SpigotUtil {
         String[] parts = Iterables.toArray(Splitter.on(',').split(item), String.class);
         if (parts.length == 0)
             return base;
-        base.setType(Material.matchMaterial(parts[0]));
+        Material material = Material.matchMaterial(parts[0]);
+        if (material != null) {
+            base.setType(material);
+        }
         if (parts.length > 1) {
             base.setAmount(Ints.tryParse(parts[1]));
         }
@@ -275,6 +286,17 @@ public class SpigotUtil {
             base.setDurability(durability.shortValue());
         }
         return base;
+    }
+
+    public static CompletableFuture<Boolean> teleportAsync(Entity entity, Location location) {
+        return ASYNC_TELEPORT ? entity.teleportAsync(location)
+                : CompletableFuture.completedFuture(entity.teleport(location));
+    }
+
+    public static CompletableFuture<Boolean> teleportAsync(Entity entity, Location location,
+            PlayerTeleportEvent.TeleportCause cause) {
+        return ASYNC_TELEPORT ? entity.teleportAsync(location, cause)
+                : CompletableFuture.completedFuture(entity.teleport(location, cause));
     }
 
     private static ChronoUnit toChronoUnit(TimeUnit tu) {
@@ -298,8 +320,10 @@ public class SpigotUtil {
         }
     }
 
+    private static boolean ASYNC_TELEPORT = false;
     private static int[] BUKKIT_VERSION = null;
     private static final Pattern DAY_MATCHER = Pattern.compile("(\\d+d)");
+    private static boolean FOLIA_SERVER = false;
     private static String MINECRAFT_PACKAGE;
     private static final Map<Class<?>, Boolean> NON_REGISTRY_CLASSES = new WeakHashMap<Class<?>, Boolean>();
     private static final Pattern NUMBER_MATCHER = Pattern.compile("(\\d+)");
@@ -312,6 +336,18 @@ public class SpigotUtil {
             Class.forName("org.bukkit.Keyed");
             SUPPORTS_KEYED = true;
         } catch (ClassNotFoundException e) {
+        }
+        try {
+            Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
+            FOLIA_SERVER = true;
+        } catch (ClassNotFoundException ignored) {
+            FOLIA_SERVER = false;
+        }
+        try {
+            Entity.class.getMethod("teleportAsync", Location.class, PlayerTeleportEvent.TeleportCause.class);
+            ASYNC_TELEPORT = true;
+        } catch (NoSuchMethodException exception) {
+            ASYNC_TELEPORT = false;
         }
     }
 }
